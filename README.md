@@ -1,5 +1,5 @@
 # nextcloud-desktop.SlackBuild
-NextCloud Desktop Client SlackBuild for Slackware Current (2021+) / 15.0
+NextCloud Desktop Client SlackBuild for Slackware 15.0-alpha1
 
 # Installation
 ````bash

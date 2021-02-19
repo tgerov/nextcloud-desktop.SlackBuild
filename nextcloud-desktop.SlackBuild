@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 PRGNAM=nextcloud-desktop
-VERSION=${VERSION:-3.1.1}
+VERSION=${VERSION:-3.1.3}
 BUILD=${BUILD:-1}
 NUMJOBS=${NUMJOBS:-" -j$(nproc) "}
 TAG=${TAG:-_tg}
@@ -152,6 +152,7 @@ cd build-${PRGNAM}
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DMAN_INSTALL_DIR=/usr/man \
     -DSYSCONF_INSTALL_DIR=/etc \
+    -DNO_SHIBBOLETH=True \
     -DLIB_SUFFIX=${LIBDIRSUFFIX} \
     ..
   make $NUMJOBS 2>&1 | tee $OUTPUT/make-${PRGNAM}.log

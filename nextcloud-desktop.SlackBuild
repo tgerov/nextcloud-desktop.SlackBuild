@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 PRGNAM=nextcloud-desktop
-VERSION=${VERSION:-3.2.0}
+VERSION=${VERSION:-3.2.1}
 BUILD=${BUILD:-1}
 NUMJOBS=${NUMJOBS:-" -j$(nproc) "}
 TAG=${TAG:-_tg}

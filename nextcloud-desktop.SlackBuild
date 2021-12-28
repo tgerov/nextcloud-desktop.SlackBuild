@@ -1,231 +1,107 @@
 #!/bin/sh
-# Slackware build script for NextCloud Desktop Client
-# Copyright 2021  Tsvetan Gerov <tsvetan@gerov.eu>
+
+# Slackware build script for nextcloud-desktop
+
+# Copyright 2021 Tsvetan Gerov <tsvetan@gerov.eu>
+# All rights reserved.
 #
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
+# Redistribution and use of this script, with or without modification, is
+# permitted provided that the following conditions are met:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# 1. Redistributions of this script must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#  THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR IMPLIED
+#  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+#  EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+#  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+#  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+#  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+#  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+#  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 PRGNAM=nextcloud-desktop
-VERSION=${VERSION:-3.2.1}
+VERSION=${VERSION:-3.4.1}
 BUILD=${BUILD:-1}
-NUMJOBS=${NUMJOBS:-" -j$(nproc) "}
-TAG=${TAG:-_tg}
+TAG=${TAG:-_SBo}
 
-DOCS="CONTRIBUTING.md COPYING* ChangeLog README.md"
-
-SRCDIR=$(cd $(dirname $0); pwd)
-TMP=${TMP:-/tmp/build}
-PKG=$TMP/package-$PRGNAM
-OUTPUT=${OUTPUT:-/tmp}
-SOURCE="$SRCDIR/${PRGNAM}-${VERSION}.tar.gz"
-SRCURL="https://github.com/nextcloud/desktop/archive/v${VERSION}/desktop-${VERSION}.tar.gz"
-
-# You can use your own private machine.conf file to overrule machine defaults:
-if [ -e $SRCDIR/machine.conf ]; then
-  . $SRCDIR/machine.conf
-elif [ -e /etc/slackbuild/machine.conf ]; then
-  . /etc/slackbuild/machine.conf
-else
-  # Automatically determine the architecture we're building on:
-  if [ -z "$ARCH" ]; then
-    case "$(uname -m)" in
-      i?86) ARCH=i586 ;;
-      arm*) readelf /usr/bin/file -A | egrep -q "Tag_CPU.*[4,5]" && ARCH=arm || ARCH=armv7hl ;;
-      # Unless $ARCH is already set, use uname -m for all other archs:
-      *) ARCH=$(uname -m) ;;
-    esac
-    export ARCH
-  fi
-  # Set CFLAGS/CXXFLAGS and LIBDIRSUFFIX:
-  case "$ARCH" in
-    i?86)      SLKCFLAGS="-O2 -march=${ARCH} -mtune=i686"
-               SLKLDFLAGS=""; LIBDIRSUFFIX=""
-               ;;
-    x86_64)    SLKCFLAGS="-O2 -fPIC"
-               SLKLDFLAGS="-L/usr/lib64"; LIBDIRSUFFIX="64"
-               ;;
-    armv7hl)   SLKCFLAGS="-O2 -march=armv7-a -mfpu=vfpv3-d16"
-               SLKLDFLAGS=""; LIBDIRSUFFIX=""
-               ;;
-    *)         SLKCFLAGS=${SLKCFLAGS:-"-O2"}
-               SLKLDFLAGS=${SLKLDFLAGS:-""}; LIBDIRSUFFIX=${LIBDIRSUFFIX:-""}
-               ;;
+if [ -z "$ARCH" ]; then
+  case "$( uname -m )" in
+    i?86) ARCH=i586 ;;
+    arm*) ARCH=arm ;;
+       *) ARCH=$( uname -m ) ;;
   esac
 fi
 
-case "$ARCH" in
-    arm*)    TARGET=$ARCH-slackware-linux-gnueabi ;;
-    *)       TARGET=$ARCH-slackware-linux ;;
-esac
+CWD=$(pwd)
+TMP=${TMP:-/tmp/SBo}
+PKG=$TMP/package-$PRGNAM
+OUTPUT=${OUTPUT:-/tmp}
 
-# Exit the script on errors:
-set -e
-trap 'echo "$0 FAILED at line ${LINENO}" | tee $OUTPUT/error-${PRGNAM}.log' ERR
-# Catch unitialized variables:
-set -u
-P1=${1:-1}
-
-# Save old umask and set to 0022:
-_UMASK_=$(umask)
-umask 0022
-
-# Create working directories:
-mkdir -p $OUTPUT
-mkdir -p $TMP/tmp-$PRGNAM
-mkdir -p $PKG
-rm -rf $PKG/*
-rm -rf $TMP/tmp-$PRGNAM/*
-rm -rf $OUTPUT/{checkout,configure,make,install,error,makepkg,patch}-$PRGNAM.log
-
-# Source file availability:
-if ! [ -f ${SOURCE} ]; then
-  echo "Source '$(basename ${SOURCE})' not available yet..."
-  # Check if the $SRCDIR is writable at all - if not, download to $OUTPUT
-  [ -w "$SRCDIR" ] || SOURCE="$OUTPUT/$(basename $SOURCE)"
-  if [ -f ${SOURCE} ]; then echo "Ah, found it!"; continue; fi
-  if ! [ "x${SRCURL}" == "x" ]; then
-    echo "Will download file to $(dirname $SOURCE)"
-    wget --no-check-certificate -nv -T 20 -O "${SOURCE}" "${SRCURL}" || true
-    if [ $? -ne 0 -o ! -s "${SOURCE}" ]; then
-      echo "Downloading '$(basename ${SOURCE})' failed... aborting the build."
-      mv -f "${SOURCE}" "${SOURCE}".FAIL
-      exit 1
-    fi
-  else
-    echo "File '$(basename ${SOURCE})' not available... aborting the build."
-    exit 1
-  fi
-fi
-
-if [ "$P1" == "--download" ]; then
-  echo "Download complete."
-  exit 0
-fi
-
-# Package build
-echo "++"
-echo "|| $PRGNAM-$VERSION"
-echo "++"
-
-# Explode the package framework:
-if [ -f $SRCDIR/_$PRGNAM.tar.gz ]; then
-  cd $PKG
-  explodepkg $SRCDIR/_$PRGNAM.tar.gz
-  cd -
-fi
-
-cd $TMP/tmp-$PRGNAM
-echo "Extracting the source archive(s) for $PRGNAM..."
-if $(file ${SOURCE} | grep -qi ": 7-zip"); then
-  7za x ${SOURCE}
-elif $(file ${SOURCE} | grep -qi ": zip"); then
-  unzip ${SOURCE}
+if [ "$ARCH" = "i586" ]; then
+  SLKCFLAGS="-O2 -march=i586 -mtune=i686"
+  LIBDIRSUFFIX=""
+elif [ "$ARCH" = "i686" ]; then
+  SLKCFLAGS="-O2 -march=i686 -mtune=i686"
+  LIBDIRSUFFIX=""
+elif [ "$ARCH" = "x86_64" ]; then
+  SLKCFLAGS="-O2 -fPIC"
+  LIBDIRSUFFIX="64"
 else
-  tar -xvf ${SOURCE}
+  SLKCFLAGS="-O2"
+  LIBDIRSUFFIX=""
 fi
-#fix01
-mv desktop-${VERSION} nextcloud-desktop-${VERSION}
-cd ${PRGNAM}-${VERSION}
-chown -R root:root .
-chmod -R u+w,go+r-w,a+rX-st .
 
-echo Building ...
-mkdir -p build-${PRGNAM}
-cd build-${PRGNAM}
+set -e
+
+rm -rf $PKG
+mkdir -p $TMP $PKG $OUTPUT
+cd $TMP
+rm -rf $PRGNAM-$VERSION
+tar xvf $CWD/desktop-$VERSION.tar.gz
+mv desktop-${VERSION} nextcloud-desktop-${VERSION}
+cd $PRGNAM-$VERSION
+chown -R root:root .
+find -L . \
+ \( -perm 777 -o -perm 775 -o -perm 750 -o -perm 711 -o -perm 555 \
+  -o -perm 511 \) -exec chmod 755 {} \; -o \
+ \( -perm 666 -o -perm 664 -o -perm 640 -o -perm 600 -o -perm 444 \
+  -o -perm 440 -o -perm 400 \) -exec chmod 644 {} \;
+
+mkdir -p build
+cd build
   cmake \
     -DCMAKE_C_FLAGS:STRING="$SLKCFLAGS" \
     -DCMAKE_CXX_FLAGS:STRING="$SLKCFLAGS" \
-    -DCMAKE_C_FLAGS_RELEASE:STRING="$SLKCFLAGS" \
-    -DCMAKE_CXX_FLAGS_RELEASE:STRING="$SLKCFLAGS" \
-    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DMAN_INSTALL_DIR=/usr/man \
-    -DSYSCONF_INSTALL_DIR=/etc \
-    -DNO_SHIBBOLETH=True \
     -DLIB_SUFFIX=${LIBDIRSUFFIX} \
-    ..
-  make $NUMJOBS 2>&1 | tee $OUTPUT/make-${PRGNAM}.log
-  make DESTDIR=$PKG install 2>&1 | tee $OUTPUT/install-${PRGNAM}.log
-cd -
+    -DCMAKE_INSTALL_MANDIR=/usr/man \
+    -DCMAKE_BUILD_TYPE=Release ..
+  make -j4
+  make install DESTDIR=$PKG
+cd ..
 
-# Add this to the doinst.sh:
-mkdir -p $PKG/install
-cat <<EOINS >> $PKG/install/doinst.sh
-# Update the desktop database:
-if [ -x usr/bin/update-desktop-database ]; then
-  chroot . /usr/bin/update-desktop-database usr/share/applications > /dev/null 2>&1
-fi
-
-# Update hicolor theme cache:
-if [ -d usr/share/icons/hicolor ]; then
-  if [ -x /usr/bin/gtk-update-icon-cache ]; then
-    chroot . /usr/bin/gtk-update-icon-cache -f -t usr/share/icons/hicolor 1> /dev/null 2> /dev/null
-  fi
-fi
-
-# Update the mime database:
-if [ -x usr/bin/update-mime-database ]; then
-  chroot . /usr/bin/update-mime-database usr/share/mime >/dev/null 2>&1
-fi
-
-EOINS
-
-# Add documentation:
-mkdir -p $PKG/usr/doc/$PRGNAM-$VERSION
-cp -a $DOCS $PKG/usr/doc/$PRGNAM-$VERSION || true
-cat $SRCDIR/$(basename $0) > $PKG/usr/doc/$PRGNAM-$VERSION/$PRGNAM.SlackBuild
-chown -R root:root $PKG/usr/doc/$PRGNAM-$VERSION
-find $PKG/usr/doc -type f -exec chmod 644 {} \;
-
-# Compress the man page(s):
-if [ -d $PKG/usr/man ]; then
-  find $PKG/usr/man -type f -name "*.?" -exec gzip -9f {} \;
-  for i in $(find $PKG/usr/man -type l -name "*.?") ; do ln -s $( readlink $i ).gz $i.gz ; rm $i ; done
-fi
-
-# Compress info pages and remove the package's dir file:
-if [ -d $PKG/usr/info ]; then
-  rm -f $PKG/usr/info/dir
-  gzip -9f $PKG/usr/info/*.info*
-fi
-
-# Strip binaries (if any):
-find $PKG | xargs file | grep -e "executable" -e "shared object" | grep ELF \
+find $PKG -print0 | xargs -0 file | grep -e "executable" -e "shared object" | grep ELF \
   | cut -f 1 -d : | xargs strip --strip-unneeded 2> /dev/null || true
 
-# Add a package description:
+if [ -d $PKG/usr/man ]; then
+  find $PKG/usr/man -type f -exec gzip -9 {} \;
+  for i in $( find $PKG/usr/man -type l ) ; do ln -s $( readlink $i ).gz $i.gz ; rm $i ; done
+fi
+
+find $PKG -name perllocal.pod -o -name ".packlist" -o -name "*.bs" | xargs rm -f || true
+
+mkdir -p $PKG/usr/doc/$PRGNAM-$VERSION
+cp -a README.md ChangeLog COPYING CONTRIBUTING.md $PKG/usr/doc/$PRGNAM-$VERSION
+cat $CWD/$PRGNAM.SlackBuild > $PKG/usr/doc/$PRGNAM-$VERSION/$PRGNAM.SlackBuild
+
 mkdir -p $PKG/install
-cat $SRCDIR/slack-desc > $PKG/install/slack-desc
-if [ -f $SRCDIR/doinst.sh ]; then
-  cat $SRCDIR/doinst.sh >> $PKG/install/doinst.sh
-elif [ -f $SRCDIR/doinst.sh.gz ]; then
-  zcat $SRCDIR/doinst.sh.gz >> $PKG/install/doinst.sh
-fi
-if [ -f $SRCDIR/slack-required ]; then
-  cat $SRCDIR/slack-required > $PKG/install/slack-required
-fi
+cat $CWD/slack-desc > $PKG/install/slack-desc
+cat $CWD/doinst.sh > $PKG/install/doinst.sh
 
-# Build the package:
+mv $PKG/etc/Nextcloud/sync-exclude.lst $PKG/etc/Nextcloud/sync-exclude.lst.new
+
 cd $PKG
-makepkg --linkadd y --chown n $OUTPUT/${PRGNAM}-${VERSION}-${ARCH}-${BUILD}${TAG}.${PKGTYPE:-tgz} 2>&1 | tee $OUTPUT/makepkg-${PRGNAM}.log
-cd $OUTPUT
-md5sum ${PRGNAM}-${VERSION}-${ARCH}-${BUILD}${TAG}.${PKGTYPE:-tgz} > ${PRGNAM}-${VERSION}-${ARCH}-${BUILD}${TAG}.${PKGTYPE:-tgz}.md5
-cd -
-cat $PKG/install/slack-desc | grep "^${PRGNAM}" > $OUTPUT/${PRGNAM}-${VERSION}-${ARCH}-${BUILD}${TAG}.txt
-if [ -f $PKG/install/slack-required ]; then
-  cat $PKG/install/slack-required > $OUTPUT/${PRGNAM}-${VERSION}-${ARCH}-${BUILD}${TAG}.dep
-fi
-
-# Restore the original umask:
-umask ${_UMASK_}
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}

@@ -1,7 +1,7 @@
 # nextcloud-desktop.SlackBuild
 NextCloud Desktop Client SlackBuild for Slackware 15.0 RC2
 
-Note: The latest version of NextCloud Desktop adds inkscape as a dependence.
+Note: The latest version of NextCloud Desktop adds inkscape as a dependency.
 
 # Installation
 ````bash

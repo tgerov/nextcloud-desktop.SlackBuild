@@ -79,7 +79,7 @@ cd build
     -DLIB_SUFFIX=${LIBDIRSUFFIX} \
     -DCMAKE_INSTALL_MANDIR=/usr/man \
     -DCMAKE_BUILD_TYPE=Release ..
-  make -j4
+  make
   make install DESTDIR=$PKG
 cd ..
 
